@@ -1,18 +1,30 @@
-import { StyleSheet, View, ScrollView, Alert } from 'react-native';
-import { useRouter, Stack } from 'expo-router';
-import { Appbar, Card, IconButton, Text, Surface, useTheme } from 'react-native-paper';
-import { useEffect, useState } from 'react';
+import { deleteEvent, Event, getAllEventDates, getEventsByDate, initDb } from '@/lib/db';
 import dayjs from 'dayjs';
-import { getAllEventDates, getEventsByDate, deleteEvent, Event } from '@/lib/db';
+import { Stack, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { Appbar, Card, IconButton, Surface, Text, useTheme } from 'react-native-paper';
 
 export default function MomentsScreen() {
   const router = useRouter();
   const theme = useTheme();
   const [moments, setMoments] = useState<Event[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    loadAllMoments();
+    initializeAndLoad();
   }, []);
+
+  const initializeAndLoad = async () => {
+    try {
+      await initDb();
+      await loadAllMoments();
+    } catch (error) {
+      console.error('Error initializing:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const loadAllMoments = async () => {
     try {
@@ -62,17 +74,17 @@ export default function MomentsScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <Appbar.Header>
         <Appbar.BackAction onPress={() => router.back()} />
-        <Appbar.Content title="💫 I Tuoi Momenti" />
+        <Appbar.Content title="💫 I Tuoi Eventi" />
       </Appbar.Header>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {moments.length === 0 ? (
           <Surface style={styles.emptyCard} elevation={0}>
             <Text variant="bodyLarge" style={styles.emptyText}>
-              Nessun momento salvato
+              Nessun evento salvato
             </Text>
             <Text variant="bodyMedium" style={styles.emptySubtext}>
-              Aggiungi i tuoi momenti speciali per rivederli qui
+              Aggiungi i tuoi eventi speciali per rivederli qui
             </Text>
           </Surface>
         ) : (

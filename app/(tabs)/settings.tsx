@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
-import { Text, Card, Switch, Button, List, Divider } from 'react-native-paper';
-import * as Notifications from 'expo-notifications';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import {
+    cancelAllNotifications,
+    requestNotificationPermissions,
+    scheduleDailyHistoryNotification,
+    sendTestNotification as sendTest
+} from '@/lib/notifications';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
-import { 
-  scheduleDailyHistoryNotification, 
-  sendTestNotification as sendTest,
-  cancelAllNotifications,
-  requestNotificationPermissions
-} from '@/lib/notifications';
+import * as Notifications from 'expo-notifications';
+import React, { useEffect, useState } from 'react';
+import { Alert, Appearance, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Button, Card, Divider, List, Switch, Text } from 'react-native-paper';
 
 // Configure notification handler
 Notifications.setNotificationHandler({
@@ -23,6 +24,8 @@ Notifications.setNotificationHandler({
 });
 
 export default function SettingsScreen() {
+  const colorScheme = useColorScheme();
+  const [isDarkMode, setIsDarkMode] = useState(colorScheme === 'dark');
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [notificationTime, setNotificationTime] = useState(new Date());
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -138,6 +141,11 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleToggleTheme = (value: boolean) => {
+    setIsDarkMode(value);
+    Appearance.setColorScheme(value ? 'dark' : 'light');
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -147,6 +155,31 @@ export default function SettingsScreen() {
             Personalizza la tua esperienza
           </Text>
         </View>
+
+        <Card style={styles.card} mode="elevated">
+          <Card.Content>
+            <Text variant="titleLarge" style={styles.sectionTitle}>
+              🎨 Tema
+            </Text>
+            <Text variant="bodyMedium" style={styles.sectionDescription}>
+              Scegli tra tema chiaro e scuro
+            </Text>
+          </Card.Content>
+
+          <Divider />
+
+          <List.Item
+            title="Tema scuro"
+            description={isDarkMode ? 'Attivo' : 'Disattivato'}
+            left={(props) => <List.Icon {...props} icon={isDarkMode ? 'weather-night' : 'weather-sunny'} />}
+            right={() => (
+              <Switch
+                value={isDarkMode}
+                onValueChange={handleToggleTheme}
+              />
+            )}
+          />
+        </Card>
 
         <Card style={styles.card} mode="elevated">
           <Card.Content>

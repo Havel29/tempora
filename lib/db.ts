@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import dayjs from 'dayjs';
 
 type SQLiteNS = typeof import('expo-sqlite');
 let SQLiteMod: SQLiteNS | null = null;
@@ -144,4 +145,97 @@ export async function getAllEventDates() {
     'SELECT date, COUNT(*) as count FROM events GROUP BY date;'
   );
   return rows;
+}
+
+export async function getAllEvents() {
+  if (Platform.OS === 'web') {
+    webStore = webStore ?? loadWebStore();
+    return webStore!.events.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  }
+  
+  const database = await getDb();
+  const rows = await database.getAllAsync<Event>(
+    'SELECT * FROM events ORDER BY createdAt DESC, id DESC;'
+  );
+  return rows;
+}
+
+export async function getEventStats() {
+  const allEvents = await getAllEvents();
+  const eventDates = await getAllEventDates();
+  
+  if (allEvents.length === 0) {
+    return {
+      total: 0,
+      daysWithEvents: 0,
+      oldestDate: null,
+      newestDate: null,
+      currentStreak: 0,
+      longestStreak: 0,
+      thisWeek: 0,
+      thisMonth: 0,
+      thisYear: 0,
+    };
+  }
+  
+  const today = new Date();
+  const dates = allEvents.map(e => e.date).sort();
+  const uniqueDates = Array.from(new Set(dates));
+  
+  // Calculate streaks
+  let currentStreak = 0;
+  let longestStreak = 0;
+  let tempStreak = 1;
+  
+  const sortedUniqueDates = uniqueDates.sort().reverse();
+  const todayStr = dayjs().format('YYYY-MM-DD');
+  const yesterdayStr = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
+  
+  // Check if there's an event today or yesterday for current streak
+  if (sortedUniqueDates[0] === todayStr || sortedUniqueDates[0] === yesterdayStr) {
+    currentStreak = 1;
+    for (let i = 1; i < sortedUniqueDates.length; i++) {
+      const prevDate = dayjs(sortedUniqueDates[i - 1]);
+      const currDate = dayjs(sortedUniqueDates[i]);
+      if (prevDate.diff(currDate, 'day') === 1) {
+        currentStreak++;
+      } else {
+        break;
+      }
+    }
+  }
+  
+  // Calculate longest streak
+  for (let i = 1; i < sortedUniqueDates.length; i++) {
+    const prevDate = dayjs(sortedUniqueDates[i - 1]);
+    const currDate = dayjs(sortedUniqueDates[i]);
+    if (prevDate.diff(currDate, 'day') === 1) {
+      tempStreak++;
+      longestStreak = Math.max(longestStreak, tempStreak);
+    } else {
+      tempStreak = 1;
+    }
+  }
+  longestStreak = Math.max(longestStreak, tempStreak, currentStreak);
+  
+  // Calculate time-based stats
+  const thisWeekStart = dayjs().startOf('week');
+  const thisMonthStart = dayjs().startOf('month');
+  const thisYearStart = dayjs().startOf('year');
+  
+  const thisWeek = allEvents.filter(e => dayjs(e.date).isAfter(thisWeekStart) || dayjs(e.date).isSame(thisWeekStart)).length;
+  const thisMonth = allEvents.filter(e => dayjs(e.date).isAfter(thisMonthStart) || dayjs(e.date).isSame(thisMonthStart)).length;
+  const thisYear = allEvents.filter(e => dayjs(e.date).isAfter(thisYearStart) || dayjs(e.date).isSame(thisYearStart)).length;
+  
+  return {
+    total: allEvents.length,
+    daysWithEvents: uniqueDates.length,
+    oldestDate: dates[0],
+    newestDate: dates[dates.length - 1],
+    currentStreak,
+    longestStreak,
+    thisWeek,
+    thisMonth,
+    thisYear,
+  };
 }

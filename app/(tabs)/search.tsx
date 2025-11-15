@@ -1,65 +1,67 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { Text, Searchbar, Card, Surface } from 'react-native-paper';
-import { useRouter } from 'expo-router';
+import { Event, getAllEvents } from '@/lib/db';
+import { useFocusEffect } from '@react-navigation/native';
 import dayjs from 'dayjs';
-import { getAllEventDates, getEventsByDate, Event } from '@/lib/db';
-import { getGlobalEventsFor, GlobalEvent } from '@/data/globalEvents';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Card, Searchbar, Surface, Text } from 'react-native-paper';
+
+type SortMode = 'recent' | 'oldest' | 'alphabetical';
 
 export default function SearchScreen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [allMoments, setAllMoments] = useState<Event[]>([]);
   const [filteredResults, setFilteredResults] = useState<Event[]>([]);
-  const [globalResults, setGlobalResults] = useState<GlobalEvent[]>([]);
+  const [sortMode, setSortMode] = useState<SortMode>('recent');
 
-  useEffect(() => {
-    loadAllMoments();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      loadAllMoments();
+    }, [])
+  );
 
   useEffect(() => {
     if (searchQuery.trim().length > 0) {
       filterResults(searchQuery);
     } else {
-      setFilteredResults([]);
-      setGlobalResults([]);
+      setFilteredResults(sortMoments(allMoments, sortMode));
     }
-  }, [searchQuery, allMoments]);
+  }, [searchQuery, allMoments, sortMode]);
 
   const loadAllMoments = async () => {
     try {
-      const dates = await getAllEventDates();
-      const moments: Event[] = [];
-      
-      for (const dateObj of dates) {
-        const events = await getEventsByDate(dateObj.date);
-        moments.push(...events);
-      }
-      
+      const moments = await getAllEvents();
       setAllMoments(moments);
+      setFilteredResults(sortMoments(moments, sortMode));
     } catch (error) {
       console.error('Error loading moments:', error);
+    }
+  };
+
+  const sortMoments = (moments: Event[], mode: SortMode): Event[] => {
+    const sorted = [...moments];
+    switch (mode) {
+      case 'recent':
+        return sorted.sort((a, b) => b.date.localeCompare(a.date));
+      case 'oldest':
+        return sorted.sort((a, b) => a.date.localeCompare(b.date));
+      case 'alphabetical':
+        return sorted.sort((a, b) => a.title.localeCompare(b.title));
+      default:
+        return sorted;
     }
   };
 
   const filterResults = (query: string) => {
     const lowerQuery = query.toLowerCase();
     
-    // Filter user moments
     const filtered = allMoments.filter(moment => 
       moment.title.toLowerCase().includes(lowerQuery) ||
-      (moment.description && moment.description.toLowerCase().includes(lowerQuery))
+      (moment.description && moment.description.toLowerCase().includes(lowerQuery)) ||
+      moment.date.includes(query)
     );
-    setFilteredResults(filtered);
-
-    // Search global events for today
-    const today = dayjs().format('YYYY-MM-DD');
-    const globals = getGlobalEventsFor(today);
-    const filteredGlobals = globals.filter(event =>
-      event.title.toLowerCase().includes(lowerQuery) ||
-      event.description.toLowerCase().includes(lowerQuery)
-    );
-    setGlobalResults(filteredGlobals);
+    setFilteredResults(sortMoments(filtered, sortMode));
   };
 
   const handleMomentPress = (date: string) => {
@@ -70,96 +72,84 @@ export default function SearchScreen() {
     <View style={styles.container}>
       <View style={styles.searchContainer}>
         <Searchbar
-          placeholder="Cerca momenti ed eventi..."
+          placeholder="Cerca per titolo, descrizione o data..."
           onChangeText={setSearchQuery}
           value={searchQuery}
           style={styles.searchBar}
+          icon="magnify"
         />
+        
+        {allMoments.length > 0 && (
+          <View style={styles.filterContainer}>
+            <SegmentedButtons
+              value={sortMode}
+              onValueChange={(value) => setSortMode(value as SortMode)}
+              buttons={[
+                { value: 'recent', label: '🕐 Recenti', style: styles.segmentButton },
+                { value: 'oldest', label: '⏳ Vecchi', style: styles.segmentButton },
+                { value: 'alphabetical', label: '🔤 A-Z', style: styles.segmentButton },
+              ]}
+              style={styles.segmentedButtons}
+            />
+          </View>
+        )}
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {searchQuery.trim().length === 0 ? (
+        {allMoments.length === 0 ? (
           <Surface style={styles.emptyCard} elevation={0}>
+            <Text variant="headlineMedium" style={styles.emptyEmoji}>📝</Text>
             <Text variant="bodyLarge" style={styles.emptyText}>
-              🔍
+              Nessun evento salvato
             </Text>
-            <Text variant="bodyMedium" style={styles.emptySubtext}>
-              Cerca tra i tuoi momenti e gli eventi storici
+            <Text variant="bodySmall" style={styles.emptySubtext}>
+              I tuoi eventi appariranno qui
+            </Text>
+          </Surface>
+        ) : filteredResults.length === 0 && searchQuery.trim().length > 0 ? (
+          <Surface style={styles.emptyCard} elevation={0}>
+            <Text variant="headlineMedium" style={styles.emptyEmoji}>🔍</Text>
+            <Text variant="bodyLarge" style={styles.emptyText}>
+              Nessun risultato per "{searchQuery}"
+            </Text>
+            <Text variant="bodySmall" style={styles.emptySubtext}>
+              Prova con altri termini di ricerca
             </Text>
           </Surface>
         ) : (
           <>
-            {filteredResults.length > 0 && (
-              <View style={styles.section}>
-                <Text variant="titleLarge" style={styles.sectionTitle}>
-                  I Tuoi Momenti ({filteredResults.length})
-                </Text>
-                {filteredResults.map((moment) => (
-                  <Card 
-                    key={moment.id} 
-                    style={styles.card} 
-                    mode="elevated"
-                    onPress={() => handleMomentPress(moment.date)}
-                  >
-                    <Card.Content>
-                      <View style={styles.cardHeader}>
-                        <View style={styles.dateContainer}>
-                          <Text variant="labelSmall" style={styles.dateLabel}>
-                            {dayjs(moment.date).format('DD MMM YYYY')}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text variant="titleMedium" style={styles.momentTitle}>
-                        {moment.title}
-                      </Text>
-                      {moment.description && (
-                        <Text variant="bodyMedium" style={styles.momentDescription}>
-                          {moment.description}
-                        </Text>
-                      )}
-                    </Card.Content>
-                  </Card>
-                ))}
-              </View>
-            )}
-
-            {globalResults.length > 0 && (
-              <View style={styles.section}>
-                <Text variant="titleLarge" style={styles.sectionTitle}>
-                  Eventi Storici ({globalResults.length})
-                </Text>
-                {globalResults.map((event, idx) => (
-                  <Card key={idx} style={styles.card} mode="elevated">
-                    <Card.Content>
-                      <View style={styles.cardHeader}>
-                        <View style={styles.yearBadge}>
-                          <Text variant="labelSmall" style={styles.yearText}>
-                            {event.year}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text variant="titleMedium" style={styles.momentTitle}>
-                        {event.title}
-                      </Text>
-                      <Text variant="bodyMedium" style={styles.momentDescription}>
-                        {event.description}
-                      </Text>
-                    </Card.Content>
-                  </Card>
-                ))}
-              </View>
-            )}
-
-            {filteredResults.length === 0 && globalResults.length === 0 && (
-              <Surface style={styles.emptyCard} elevation={0}>
-                <Text variant="bodyLarge" style={styles.emptyText}>
-                  Nessun risultato trovato
-                </Text>
-                <Text variant="bodyMedium" style={styles.emptySubtext}>
-                  Prova con parole chiave diverse
-                </Text>
-              </Surface>
-            )}
+            <View style={styles.resultsHeader}>
+              <Text variant="titleMedium" style={styles.resultsTitle}>
+                {searchQuery.trim().length > 0 ? `Risultati (${filteredResults.length})` : `Tutti gli eventi (${filteredResults.length})`}
+              </Text>
+            </View>
+            {filteredResults.map((moment) => (
+              <Card 
+                key={moment.id} 
+                style={styles.card} 
+                mode="elevated"
+                onPress={() => handleMomentPress(moment.date)}
+              >
+                <Card.Content>
+                  <View style={styles.cardHeader}>
+                    <Chip mode="flat" style={styles.dateChip} textStyle={styles.dateText}>
+                      📅 {dayjs(moment.date).format('DD MMM YYYY')}
+                    </Chip>
+                    <Text variant="bodySmall" style={styles.relativeDate}>
+                      {getRelativeDate(moment.date)}
+                    </Text>
+                  </View>
+                  <Text variant="titleLarge" style={styles.momentTitle}>
+                    {highlightText(moment.title, searchQuery)}
+                  </Text>
+                  {moment.description && (
+                    <Text variant="bodyMedium" style={styles.momentDescription} numberOfLines={2}>
+                      {highlightText(moment.description, searchQuery)}
+                    </Text>
+                  )}
+                </Card.Content>
+              </Card>
+            ))}
           </>
         )}
       </ScrollView>
@@ -167,28 +157,55 @@ export default function SearchScreen() {
   );
 }
 
+const getRelativeDate = (date: string): string => {
+  const diff = dayjs().diff(dayjs(date), 'day');
+  if (diff === 0) return 'Oggi';
+  if (diff === 1) return 'Ieri';
+  if (diff === -1) return 'Domani';
+  if (diff < 0) return `Tra ${Math.abs(diff)} giorni`;
+  if (diff < 7) return `${diff} giorni fa`;
+  if (diff < 30) return `${Math.floor(diff / 7)} settimane fa`;
+  if (diff < 365) return `${Math.floor(diff / 30)} mesi fa`;
+  return `${Math.floor(diff / 365)} anni fa`;
+};
+
+const highlightText = (text: string, query: string): string => {
+  // For now, just return the text. In a real app, you'd use Text components with different styles
+  return text;
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
   searchContainer: {
     padding: 16,
-    paddingTop: 90,
+    paddingTop: 70,
   },
   searchBar: {
     elevation: 2,
+    marginBottom: 12,
+  },
+  filterContainer: {
+    marginTop: 4,
+  },
+  segmentedButtons: {
+    marginVertical: 0,
+  },
+  segmentButton: {
+    paddingVertical: 0,
   },
   scrollContent: {
     padding: 20,
     paddingTop: 8,
     paddingBottom: 40,
   },
-  section: {
-    marginBottom: 24,
+  resultsHeader: {
+    marginBottom: 16,
   },
-  sectionTitle: {
+  resultsTitle: {
     fontWeight: 'bold',
-    marginBottom: 12,
+    color: '#1E293B',
   },
   card: {
     marginBottom: 12,
@@ -196,48 +213,48 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
-  dateContainer: {
+  dateChip: {
     backgroundColor: '#EEF2FF',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
   },
-  dateLabel: {
+  dateText: {
     color: '#6366F1',
-    fontWeight: 'bold',
+    fontWeight: '600',
+    fontSize: 12,
   },
-  yearBadge: {
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  yearText: {
-    color: '#6366F1',
-    fontWeight: 'bold',
+  relativeDate: {
+    opacity: 0.6,
+    fontStyle: 'italic',
   },
   momentTitle: {
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 8,
+    lineHeight: 26,
   },
   momentDescription: {
     opacity: 0.8,
-    lineHeight: 20,
+    lineHeight: 22,
   },
   emptyCard: {
-    padding: 32,
+    padding: 40,
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 40,
   },
-  emptyText: {
-    fontSize: 48,
+  emptyEmoji: {
+    fontSize: 64,
     marginBottom: 16,
+    lineHeight: 72,
+  },
+  emptyText: {
+    opacity: 0.8,
+    textAlign: 'center',
+    marginBottom: 8,
   },
   emptySubtext: {
-    opacity: 0.6,
+    opacity: 0.5,
     textAlign: 'center',
   },
 });

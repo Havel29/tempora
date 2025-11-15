@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, Platform, ScrollView } from 'react-native';
-import { Appbar, TextInput, Button } from 'react-native-paper';
-import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
+import { addEvent } from '@/lib/db';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
-import { addEvent } from '@/lib/db';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Appbar, Button, TextInput } from 'react-native-paper';
 
 export default function AddScreen() {
   const router = useRouter();
@@ -37,7 +37,7 @@ export default function AddScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <Appbar.Header>
         <Appbar.BackAction onPress={() => router.back()} />
-        <Appbar.Content title="Nuovo momento" />
+        <Appbar.Content title="Nuovo evento" />
         <Appbar.Action icon="content-save" onPress={onSave} disabled={!title.trim()} />
       </Appbar.Header>
 
@@ -91,7 +91,7 @@ export default function AddScreen() {
           icon="check"
           style={styles.saveButton}
         >
-          Salva momento
+          Salva evento
         </Button>
       </ScrollView>
     </View>

@@ -1,6 +1,6 @@
-import * as Notifications from 'expo-notifications';
-import dayjs from 'dayjs';
 import { getGlobalEventsFor } from '@/data/globalEvents';
+import dayjs from 'dayjs';
+import * as Notifications from 'expo-notifications';
 
 export async function scheduleDailyHistoryNotification(hour: number, minute: number) {
   try {
@@ -16,7 +16,7 @@ export async function scheduleDailyHistoryNotification(hour: number, minute: num
 
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: '📅 Accadde oggi',
+        title: '📅 Tempora · Accadde oggi',
         body: 'Scopri quali eventi storici sono accaduti in questo giorno!',
         data: { type: 'daily_history' },
       },
@@ -49,7 +49,7 @@ export async function sendTestNotification() {
 
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: '📅 Accadde oggi (Test)',
+        title: '📅 Tempora · Accadde oggi',
         body,
         data: { type: 'test' },
       },
